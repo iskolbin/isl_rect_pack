@@ -95,15 +95,19 @@ static islrp__score_result islrp__score( islrp_context *context, int w, int h, I
 }
 
 static void islrp__prune_free( islrp_context *context ) {
+	// TODO
 }
 
 static void islrp__push_free( islrp_context *context, islrp_rect rect ) {
+	// TODO
 }
 
 static void islrp__push_used( islrp_context *context, islrp_rect rect ) {
+	// TODO
 }
 
 static void islrp__remove_free( islrp_context *context, int i ) {
+	// TODO
 }
 
 static int islrp__split_free( islrp_context *context, islrp_rect free_rect, islrp_rect rect ) {

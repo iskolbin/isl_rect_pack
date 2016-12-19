@@ -3,42 +3,16 @@
 
 #define ISL_RECT_PACK_VERSION 1
 
-#ifndef ISLRP_NO_STDDEF
-	#include <stddef.h>
-	typedef size_t islrp_size_t;
-#else
-	typedef unsigned long int islrp_size_t;
-#endif
+#include <stddef.h>
+#include <limits.h>
 
-#ifndef ISLRP_NO_LIMITS
-	#include <limits.h>
-	#define ISLRP_INT_MAX INT_MAX
-#else
-	#define ISLRP_INT_MAX (2*((1<<((sizeof(int)<<3)-2))-1)+1)
-#endif
-
-#if !defined(ISLRP_NO_AUTO_RESIZE) && defined(ISLRP_NO_STDLIB) && !defined(ISLRP_REALLOC)
-	#error "You must disable auto resizing, either allow use of stdlib or define realloc"
-#endif
-
-#if defined(ISLRP_MALLOC) && defined(ISLRP_FREE)
-	#define ISLRP_NO_STDLIB
-#endif
-
-#ifndef ISLRP_NO_STDLIB
+#if !defined(ISLRP_MALLOC) && !defined(ISLRP_FREE) && !defined(ISLRP_REALLOC)
 	#include <stdlib.h>
-	#define ISLRP_NULL NULL
-	#ifndef ISLRP_MALLOC
-		#define ISLRP_MALLOC(v) malloc(v)
-	#endif
-	#ifndef ISLRP_FREE
-		#define ISLRP_FREE(v) free(v)
-	#endif
-	#ifndef ISLRP_REALLOC
-		#define ISLRP_REALLOC(a,b) realloc((a),(b))
-	#endif
-#else
-	#define ISLRP_NULL ((void *)0)
+	#define ISLRP_MALLOC(v) malloc(v)
+	#define ISLRP_FREE(v) free(v)
+	#define ISLRP_REALLOC(a,b) realloc((a),(b))
+#elif defined(ISLRP_MALLOC) || defined(ISLRP_FREE) || !defined(ISLRP_REALLOC)
+	#error "You have to define ISLRP_MALLOC, ISLRP_REALLOC and ISLRP_FREE to remove stdlib.h dependency"
 #endif
 
 #ifndef ISLRP_MEMMOVE
@@ -46,7 +20,6 @@
 		#include <string.h>
 		#define ISLRP_MEMMOVE(x,y,z) memmove((x),(y),(z))
 	#else
-		#define ISLRP_NAIVE_MEMMOVE
 		#define ISLRP_MEMMOVE(x,y,z) islrp__memmove((x),(y),(z))
 	#endif
 #endif
@@ -73,10 +46,10 @@ typedef struct {
 typedef struct {
 	islrp_rect *free_rects;
 	islrp_rect *used_rects;
-	islrp_size_t num_free;
-	islrp_size_t num_used;
-	islrp_size_t allocated_free;
-	islrp_size_t allocated_used;
+	size_t num_free;
+	size_t num_used;
+	size_t allocated_free;
+	size_t allocated_used;
 } islrp_context;
 
 typedef struct {
@@ -93,11 +66,9 @@ typedef enum {
 	ISLRP_METHOD_MAXRECTS_BEST_AREA,
 } islrp_method;
 
-ISLRP_DEF int islrp_pack_rects( islrp_context *context, islrp_rect *rects, islrp_size_t num_rects, islrp_method method );
-#ifndef ISLRP_NO_STDLIB
+ISLRP_DEF int islrp_pack_rects( islrp_context *context, islrp_rect *rects, size_t num_rects, islrp_method method );
 ISLRP_DEF islrp_context *islrp_create_default_context( int prealloc );
 ISLRP_DEF void islrp_destroy_default_context( islrp_context *context );
-#endif
 
 #ifdef __cplusplus
 }
@@ -111,11 +82,11 @@ ISLRP_DEF void islrp_destroy_default_context( islrp_context *context );
 #define ISLRP_ABS(a) ((a) > 0 ? (a) : -(a))
 
 static islrp__score_result islrp__find_best_area( islrp_context *context, int w, int h ) {
-	islrp_size_t i;
+	size_t i;
 	islrp__score_result result = {0};
 	
-	int best_area_fit = ISLRP_INT_MAX;
-	int best_short_side_fit = ISLRP_INT_MAX;
+	int best_area_fit = INT_MAX;
+	int best_short_side_fit = INT_MAX;
 	
 	for ( i = 0; i < context->num_free; i++ ) {
 		islrp_rect *rect = context->free_rects + i;
@@ -154,13 +125,13 @@ static int islrp__intersects( islrp_rect *a, islrp_rect *b ) {
 	return a->x <= b->x + b->w && a->x + a->w >= b->x && a->y <= b->y + b->h && a->y + a->h >= b->y;
 }
 
-static void islrp__remove_free( islrp_context *context, islrp_size_t i ) {
+static void islrp__remove_free( islrp_context *context, size_t i ) {
 	ISLRP_MEMMOVE( (void *)(context->free_rects + i), (const void *)(context->free_rects + i + 1), (context->num_free - i)*sizeof(islrp_rect));
 	context->num_free--;
 }
 
 static void islrp__prune_free( islrp_context *context ) {
-	islrp_size_t i, j;
+	size_t i, j;
 	for ( i = 0; i < context->num_free; i++ ) {
 		for ( j = i+1; j < context->num_free; j++ ) {
 			if ( islrp__contains( context->free_rects+i, context->free_rects+j )) {
@@ -235,8 +206,8 @@ static int islrp__split_free( islrp_context *context, islrp_rect free_rect, islr
 }
 
 static void islrp__place_rect( islrp_context *context, islrp_rect rect ) {
-	islrp_size_t i;
-	islrp_size_t num_free = context->num_free;
+	size_t i;
+	size_t num_free = context->num_free;
 	for ( i = 0; i < num_free; i++ ) {
 		if ( islrp__split_free( context, context->free_rects[i], rect )) {
 			islrp__remove_free( context, i );
@@ -249,12 +220,12 @@ static void islrp__place_rect( islrp_context *context, islrp_rect rect ) {
 	islrp__push_used( context, rect );
 }	
 
-int islrp_pack_rects( islrp_context *context, islrp_rect *rects, islrp_size_t num_rects, islrp_method method ) {
-	islrp_size_t i, j;
+int islrp_pack_rects( islrp_context *context, islrp_rect *rects, size_t num_rects, islrp_method method ) {
+	size_t i, j;
 	for ( i = 0; i < num_rects; i++ ) {
 		islrp_rect *iter = rects;
-		islrp__score_result best = {{0},ISLRP_INT_MAX,ISLRP_INT_MAX};
-		islrp_rect *pbest = ISLRP_NULL;
+		islrp__score_result best = {{0},INT_MAX,INT_MAX};
+		islrp_rect *pbest = NULL;
 		for ( j = 0; j < num_rects; j++, iter++ ) {
 			if ( !iter->was_packed ) {
 				islrp__score_result result = islrp__score( context, iter->w, iter->h, method );
@@ -276,7 +247,6 @@ int islrp_pack_rects( islrp_context *context, islrp_rect *rects, islrp_size_t nu
 	return 0;
 }
 
-#ifndef ISLRP_NO_STDLIB
 islrp_context *islrp_create_default_context( int prealloc ) {
 	islrp_context *context = ISLRP_MALLOC( sizeof *context );
 	prealloc = prealloc > 0 ? prealloc : 1;
@@ -293,22 +263,21 @@ void islrp_destroy_default_context( islrp_context *context ) {
 	if ( context ) {
 		if ( context->free_rects ) {
 			ISLRP_FREE( context->free_rects );
-			context->free_rects = ISLRP_NULL;
+			context->free_rects = NULL;
 		}
 		if ( context->used_rects ) {
 			ISLRP_FREE( context->used_rects );
-			context->used_rects = ISLRP_NULL;
+			context->used_rects = NULL;
 		}
 		ISLRP_FREE( context );
 	}
 }
-#endif
 
-#ifdef ISLRP_NAIVE_MEMMOVE
-static void *islrp__memmove( void *dest, const void *src, islrp_size_t count ) {
+#ifdef ISLRP_NO_MEMMOVE
+static void *islrp__memmove( void *dest, const void *src, size_t count ) {
 	islrp_rect *rects_dest = (islrp_rect *) dest;
 	islrp_rect *rects_src = (islrp_rect *) src;
-	islrp_size_t n = count / sizeof( islrp_rect );
+	size_t n = count / sizeof( islrp_rect );
 	while( n-- ) {
 		*rects_dest = *rects_src;
 		rects_dest++;

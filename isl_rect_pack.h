@@ -8,18 +8,11 @@
 
 #ifndef ISLRP_NO_STDLIB
 	#include <stdlib.h>
-	#define ISLRP_NULL NULL
-	#ifndef ISLRP_MALLOC
-		#define ISLRP_MALLOC(v) malloc(v)
-	#endif
-	#ifndef ISLRP_FREE
-		#define ISLRP_FREE(v) free(v)
-	#endif
-	#ifndef ISLRP_REALLOC
-		#define ISLRP_REALLOC(a,b) realloc((a),(b))
-	#endif
-#else
-	#define ISLRP_NULL ((void *)0)
+	#define ISLRP_MALLOC(v) malloc(v)
+	#define ISLRP_FREE(v) free(v)
+	#define ISLRP_REALLOC(a,b) realloc((a),(b))
+#elif defined(ISLRP_MALLOC) || defined(ISLRP_FREE) || !defined(ISLRP_REALLOC)
+	#error "You have to define ISLRP_MALLOC, ISLRP_REALLOC and ISLRP_FREE to remove stdlib.h dependency"
 #endif
 
 #ifndef ISLRP_MEMMOVE
@@ -27,7 +20,6 @@
 		#include <string.h>
 		#define ISLRP_MEMMOVE(x,y,z) memmove((x),(y),(z))
 	#else
-		#define ISLRP_NAIVE_MEMMOVE
 		#define ISLRP_MEMMOVE(x,y,z) islrp__memmove((x),(y),(z))
 	#endif
 #endif
@@ -99,10 +91,8 @@ ISLRP_DEF int islrp_pack_rects(struct islrp_context *context, struct islrp_rect 
 static struct islrp_score_result islrp__find_best_area(struct islrp_context *context, int width, int height) {
 	size_t i;
 	struct islrp_score_result result = {0};
-
 	int best_area_fit = INT_MAX;
 	int best_short_side_fit = INT_MAX;
-
 	for ( i = 0; i < context->num_free; i++ ) {
 		struct islrp_rect *rect = context->free_rects + i;
 		int area_fit = rect->width * rect->height - width * height;
